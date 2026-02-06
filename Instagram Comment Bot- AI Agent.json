@@ -1,0 +1,363 @@
+{
+  "name": "Instagram Comment Bot UK - AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-comment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bedf440a-bd17-4164-9fd5-78b379d15362",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1056,
+        288
+      ],
+      "webhookId": "d8eaaa77-cf07-49ef-a752-4987afbc120a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.body;\n\nreturn [{ json: {\n  comment_id: data.comment_id || data.id,\n  post_id: data.post_id || data.media?.id,\n  user_id: data.from?.id || data.user_id,\n  username: data.from?.username || data.username,\n  comment_text: data.text || data.message,\n  timestamp: data.timestamp || new Date().toISOString(),\n  post_caption: data.media?.caption || '',\n  media_url: data.media?.media_url || ''\n}}];"
+      },
+      "id": "451df253-2cdb-43f9-92fd-424494d45346",
+      "name": "Parse Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -832,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "=## ROLE\nYou are a professional e-commerce social media specialist. You analyze Instagram comments to understand customer intent and generate British English responses.\n\n## COMMENT DATA\n**Username:** @{{$json.username}}\n**Comment:** {{$json.comment_text}}\n**Post Caption:** {{$json.post_caption}}\n\n## YOUR TASK\nAnalyze the comment and provide:\n1. Intent category\n2. Confidence score (0-100)\n3. Public reply (British English, max 40 words)\n4. DM message (professional, UK-focused)\n5. Urgency level\n\n## INTENT CATEGORIES\n\n**price_inquiry** - \"price?\", \"how much?\", \"cost?\"\n**availability_check** - \"available?\", \"in stock?\"\n**size_inquiry** - \"size?\", \"what sizes?\"\n**link_request** - \"link?\", \"where to buy?\"\n**general_interest** - \"love this\", \"need this\", emojis\n**question** - product questions\n**not_interested** - negative/spam\n\n## PUBLIC REPLY STYLE\n\n- British English (colour, favourite, etc.)\n- Professional but friendly\n- Max 40 words\n- 1-2 emojis\n- Mention DM sent\n\n**Examples:**\n- \"Thanks for your interest! 😊 I've sent the details to your DM.\"\n- \"Yes, in stock! Link sent to your DM 🛍️\"\n- \"All sizes available! Check your DM for details 📦\"\n\n## DM MESSAGE STYLE\n\n**Must include:**\n- Greeting with username\n- Product name and price in £\n- UK delivery info\n- Product link\n- 2-3 key features\n- Discount code\n- Professional British tone\n\n**Example:**\n```\nHi @username! 👋\n\nThanks for your interest! Here's what you need to know:\n\n🛍️ Premium Wireless Headphones\n💷 £49.99 (20% off - was £62.49)\n\n✨ Key features:\n• Active noise cancellation\n• 30-hour battery life\n• Premium sound quality\n\n🔗 Shop here: https://store.com/products/headphones\n\n📦 Free UK delivery on orders over £30\n🎁 Use code INSTA15 for an extra 15% off\n\nAny questions? Just reply! 😊\n```\n\n## URGENCY LEVELS\n- **immediate** - price/link requests\n- **high** - availability/size\n- **medium** - general interest\n- **low** - questions\n\n## OUTPUT JSON\n```json\n{\n  \"intent_category\": \"price_inquiry\",\n  \"confidence_score\": 95,\n  \"product_interest\": true,\n  \"public_reply\": \"British English reply\",\n  \"dm_message\": \"Full DM message\",\n  \"urgency_level\": \"immediate\",\n  \"should_send_dm\": true,\n  \"sentiment\": \"positive\"\n}\n```",
+        "options": {
+          "systemMessage": "You are a UK e-commerce Instagram AI. Always use British English. Respond with valid JSON only. Be professional and helpful."
+        }
+      },
+      "id": "0750a0e2-0149-4ef7-883b-598bf627b326",
+      "name": "AI Intent Detector",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        -656,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 400,
+          "temperature": 0.3
+        }
+      },
+      "id": "d5526ec9-9157-4ae4-9e94-a98684a64219",
+      "name": "OpenAI Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json.output;\nconst comment = $('Parse Comment').first().json;\n\nlet p;\ntry {\n  p = typeof ai === 'string' ? JSON.parse(ai) : ai;\n} catch (e) {\n  const m = ai.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  p = m ? JSON.parse(m[1]) : {};\n}\n\nreturn [{ json: {\n  comment_id: comment.comment_id,\n  post_id: comment.post_id,\n  user_id: comment.user_id,\n  username: comment.username,\n  comment_text: comment.comment_text,\n  intent: p.intent_category,\n  confidence: p.confidence_score,\n  product_interest: p.product_interest,\n  public_reply: p.public_reply,\n  dm_message: p.dm_message,\n  urgency: p.urgency_level,\n  should_send_dm: p.should_send_dm,\n  sentiment: p.sentiment,\n  processed_at: new Date().toISOString()\n}}];"
+      },
+      "id": "4af715b0-054a-4f1d-9563-0a1141d375ce",
+      "name": "Parse Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://{{$env.SHOPIFY_STORE}}.myshopify.com/admin/api/2024-01/products.json?limit=1&title={{$('Parse Comment').first().json.post_caption.split(' ').slice(0, 3).join(' ')}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "shopifyApi",
+        "options": {}
+      },
+      "id": "b6d73c3f-e235-441c-835d-79cac473200b",
+      "name": "Fetch Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -176,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const intent = $('Parse Intent').first().json;\nconst shopify = $json;\n\nconst product = shopify.products?.[0];\nif (!product) {\n  return [{ json: { ...intent, has_product: false, final_dm: intent.dm_message }}];\n}\n\nconst variant = product.variants[0];\nconst priceGBP = parseFloat(variant.price);\nconst comparePriceGBP = parseFloat(variant.compare_at_price || priceGBP);\nconst discount = comparePriceGBP > priceGBP ? Math.round((1 - priceGBP/comparePriceGBP) * 100) : 0;\n\nconst productUrl = `https://${process.env.SHOPIFY_STORE}.myshopify.com/products/${product.handle}`;\n\nconst features = product.body_html?.replace(/<[^>]*>/g, '').split('\\n').filter(l => l.trim()).slice(0, 3).map(l => `• ${l.trim()}`) || ['• Premium quality', '• Fast UK delivery', '• Easy returns'];\n\nconst enhancedDM = `Hi @${intent.username}! 👋\\n\\nThanks for your interest! Here's what you need to know:\\n\\n🛍️ ${product.title}\\n💷 £${priceGBP.toFixed(2)}${discount > 0 ? ` (${discount}% off - was £${comparePriceGBP.toFixed(2)})` : ''}\\n\\n✨ Key features:\\n${features.join('\\n')}\\n\\n🔗 Shop here: ${productUrl}\\n\\n📦 Free UK delivery on orders over £30\\n🎁 Use code INSTA15 for an extra 15% off\\n\\nAny questions? Just reply! 😊`;\n\nreturn [{ json: {\n  ...intent,\n  has_product: true,\n  product_id: product.id,\n  product_title: product.title,\n  product_price_gbp: priceGBP,\n  product_url: productUrl,\n  discount_percent: discount,\n  final_dm: enhancedDM\n}}];"
+      },
+      "id": "7e70dbcc-bbea-4eb0-9e63-295b3725f0f9",
+      "name": "Enhance DM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{$json.comment_id}}/replies",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{$env.INSTAGRAM_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.public_reply}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3815280b-1e2c-44bf-afdd-91b77e20a479",
+      "name": "Reply Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        48,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{$json.should_send_dm}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "leftValue": "={{$json.product_interest}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5530ea4b-91b4-4580-9537-eacd9faf3066",
+      "name": "Check Send DM",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        48,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{$env.INSTAGRAM_ACCESS_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"recipient\": { \"id\": $json.user_id }, \"message\": { \"text\": $json.final_dm } } }}",
+        "options": {}
+      },
+      "id": "deef05e4-b400-41eb-8c75-fefd257a18de",
+      "name": "Send DM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        272,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery"
+      },
+      "id": "952622d4-857b-4c7c-83f3-aa320593099b",
+      "name": "Log Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        272,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"intent\": $json.intent, \"dm_sent\": $json.should_send_dm } }}",
+        "options": {}
+      },
+      "id": "53b8b690-fa28-4e4f-9fca-538ec16769a0",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Comment": {
+      "main": [
+        [
+          {
+            "node": "AI Intent Detector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Intent Detector": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Intent Detector",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "Fetch Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Product": {
+      "main": [
+        [
+          {
+            "node": "Enhance DM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhance DM": {
+      "main": [
+        [
+          {
+            "node": "Reply Comment",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Send DM",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Send DM": {
+      "main": [
+        [
+          {
+            "node": "Send DM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send DM": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Comment": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4f7b1e3b-6392-4e31-bd82-5b59503f35fa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4d4ff0faaf60ff5aa13535fbf4a526493f83f87341cf79daccb10e8f9441a1f5"
+  },
+  "id": "xXLuJKUtm67c7L4h",
+  "tags": []
+}
